@@ -82,7 +82,8 @@ class cppCode():
         self._macroVal = []
     
     def addInclude(self, include):
-        self._incs.append(include)
+        if include != None:
+            self._incs.append(include)
     
     def addMacroVal(self, name, val, static = True):
         self._macroVal.append({
@@ -224,6 +225,9 @@ class NASMessageParseCode(cppCode):
 
     def __init__(self, msgName, msgDef):
 
+        fileName = "nas_msg_" + msgName
+        super(NASMessageParseCode, self).__init__(fileName)
+
         self.msgDef = msgDef
         self.msgName = msgName
         
@@ -233,24 +237,21 @@ class NASMessageParseCode(cppCode):
         self.interestedIEs = [ie for ie in self.optionalIEs if REFINER.checkIE(self.msgName, ie["ie"])]
         self.interestedFullIEIs = [ie for ie in self.interestedIEs if "-" not in ie["iei"]]
         self.interestedHalfIEIs = [ie for ie in self.interestedIEs if "-" in ie["iei"]]
-        
-        fileName = "nas_msg_" + msgName
-        super(NASMessageParseCode, self).__init__(fileName)
+
         self.addInclude("lte_nas_ie.h")
         self.addInclude(fileName + ".h")
         for ie in [ie for ie in self.msgDef if REFINER.checkIE(self.msgName, ie["ie"])]:
-            hdr = IE_MODULES.getModuleHdr(ie["type"])
-            if hdr:
-                self.addInclude(hdr)
+            self.addInclude(IE_MODULES.getModuleHdr(ie["type"]))
+
         self.addEnum("$name$_content", [self.msgName + "_" + ie["ie"] for ie in msgDef], public=True)
 
-        self.addFunction("void", "ie_info_noticer", ["unsigned int info_id", "unsigned char *info", "unsigned short len", "void *priv"])
+        # self.addFunction("void", "ie_info_noticer", ["unsigned int info_id", "unsigned char *info", "unsigned short len", "void *priv"])
         self.addFunction("unsigned short", "mandatory_ies_parse", ["unsigned char *data", "unsigned short len", "struct nas_msg_noticer_priv *priv"])
         self.addFunction("void", "$name$_parse", ["unsigned char *data", "unsigned short len", "struct nas_msg_noticer_priv *priv"], static = False)
         self.addFunction("const char *", "$name$_ie_id_to_str", ["unsigned int ie"], static = False)
         self.addFunction("const char *", "$name$_ie_info_id_to_str", ["unsigned int ie", "unsigned int info"], static = False)
 
-        self.ieNoticerFuncFill()
+        # self.ieNoticerFuncFill()
         self.mandatoryIesParseFuncFill()
         self.parseFuncFill()
         self.msgIEToNameFuncFill()
@@ -312,7 +313,7 @@ class NASMessageParseCode(cppCode):
         lines.append("while(target_ies_left && (len > parsed_len)){")
 
         lines.append("\tunsigned int iei, ie_val_len;")
-        lines.append("\tunsigned char msg_value_offset = 0;")
+        lines.append("\tunsigned char msg_value_offset = 1; //default")
         lines.append("\tunsigned char *ie_pos = data + parsed_len;")
         lines.append("\tiei = *ie_pos;")
         lines.append("")
@@ -334,14 +335,15 @@ class NASMessageParseCode(cppCode):
                 lines.append("\t\t\tbreak;")
             else:
                 for ie in fmtCates[cate]:
-                    lines.append("\t\tcase 0x%s: ie_val_len = %s; msg_value_offset = %d; break;" %(ie["iei"].strip("-"), lteNasIEValueLenResolve(ie, "ie_pos"), lteNasIEValueOffset(ie)))
+                    lines.append("\t\tcase 0x%s: ie_val_len = %s; break;" %(ie["iei"].strip("-"), lteNasIEValueLenResolve(ie, "ie_pos")))
                 
         lines.append("\t\tdefault:")
 
         if self.halfIEIs:
             lines.append("\t\t\tswitch(iei & 0xf0){")
             lines.append("\t\t\t\t" + " ".join(["case 0x%s:" %(ie["iei"].strip("-")) for ie in self.halfIEIs]))
-            lines.append("\t\t\t\t\tie_val_len = 1; break;")
+            lines.append("\t\t\t\t\tie_val_len = 1;")
+            lines.append("\t\t\t\t\tmsg_value_offset = 0; break;")
             lines.append("\t\t\t\tdefault: return; //unknown IEI")
             lines.append("\t\t\t}")
         else:
@@ -579,21 +581,12 @@ def main():
             if ie["format"] != "TV":
                 print("bad IE:", str(ie))
         
-        # if ieType in IETypesDict:
-        #     exist = IETypesDict[ieType]
-        #     if ie["format"] != exist["format"] or ie["length"] != exist["length"]:
-        #         print("multiple IE Type %s usage:" %(ieType))
-        #         print("->", ie)
-        #         print("->", IETypesDict[ieType])
-        #         continue
         IETypesDict[ieType] = ie
     
     for msg in msgDefs:
-        # print("NAS Message: %s (0x%02x)" %(msg, getMessageTypeId(msg)))
         if REFINER.checkMsg(msg):
             NASMessageParseCode(msg, msgDefs[msg]).dumps(targetPath)
 
-    # interestedMsgs = [msgDefs[msg] for msg in msgDefs if REFINER.checkMsg(msg)]
     NASMessageCode(msgDefs).dumps(targetPath)
 
 REFINER = Refiner(args.refine_rule)

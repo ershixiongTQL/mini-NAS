@@ -47,6 +47,8 @@ typedef void (*lte_nas_ie_info_noticer)(unsigned int info_id, unsigned char *inf
 typedef void (*lte_nas_msg_noticer)(lte_nas_msg_t msg_type, unsigned int msg_ie_id, unsigned int info_id, unsigned char *info, unsigned short len);
 typedef void (*lte_nas_ie_parser)(const char *data, unsigned int len, lte_nas_ie_info_noticer noticer, void *priv);
 
+void ie_info_noticer(unsigned int info_id, unsigned char *info, unsigned short len, void *priv);
+
 struct nas_msg_noticer_priv{
     lte_nas_msg_noticer noticer;
 
