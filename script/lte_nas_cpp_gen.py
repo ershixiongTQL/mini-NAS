@@ -542,8 +542,6 @@ def IEModuleExam(moduleName, pattern):
     
     content = file.read()
 
-    print(pattern)
-
     found = re.search(pattern, content)
     
     return True if found else False
