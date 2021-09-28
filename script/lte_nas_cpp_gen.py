@@ -4,9 +4,11 @@ import os, sys, re, json, argparse
 from typing import List, Optional
 import pathlib
 from NASConstants import EMM_TYPES, ESM_TYPES
+from refiner import Refiner
 
 argParser = argparse.ArgumentParser()
 argParser.add_argument("nas_msg_def", type = open)
+argParser.add_argument("refine_rule", type = pathlib.Path, help=".yaml file used to refine the output")
 argParser.add_argument("--ie_modules", type = pathlib.Path, help="dir which contains code supports specific IE")
 argParser.add_argument("--target_dir", type = pathlib.Path, default="gen", help="destdir to hold the generated codes")
 
@@ -67,39 +69,6 @@ class IEModules():
 
     def __str__(self):
         return "Support IEs:\n" + str(self.ieSupports)
-
-class LTENasRefiner():
-
-    def __init__(self):
-        pass
-
-    def checkMsg(self, msgName):
-
-        # return True
-        
-        if msgName in ["attach request"]:
-            return True
-        return False
-
-    def checkIE(self, msgName, IEName):
-
-        # return True
-
-        msgName = msgName.lower()
-        IEName = IEName.lower()
-
-        if msgName == "attach request":
-            if IEName in [
-                "last visited registered tai", 
-                # "ms network capability",
-                # "additional update type",
-                # "security header type",
-                # "protocol discriminator",
-                # "mobile station classmark 2",
-                ]:
-                return True
-        
-        return False #debug
 
 class cppCode():
 
@@ -627,6 +596,6 @@ def main():
     # interestedMsgs = [msgDefs[msg] for msg in msgDefs if REFINER.checkMsg(msg)]
     NASMessageCode(msgDefs).dumps(targetPath)
 
-REFINER = LTENasRefiner()
+REFINER = Refiner(args.refine_rule)
 IE_MODULES = IEModules(args.ie_modules)
 main()

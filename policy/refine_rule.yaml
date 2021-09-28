@@ -1,0 +1,9 @@
+-
+  msg : 
+    - attach request
+  ie : last visited registered tai
+  info : 
+    - MCC
+    - MNC
+    - TAI
+    
