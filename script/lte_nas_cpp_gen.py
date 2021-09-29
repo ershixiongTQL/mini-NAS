@@ -74,6 +74,8 @@ class IEModules():
             self.infoSwitches[ie_type] = [info_name]
 
     def getInfoSwitches(self, ie_type):
+        if ie_type not in self.infoSwitches:
+            return []
         return self.infoSwitches[ie_type]
 
     def getAllInfoSwitches(self):
@@ -255,11 +257,18 @@ class NASMessageParseCode(cppCode):
         self.msgName = msgName
         
         self.optionalIEs = [ie for ie in self.msgDef if ie["presence"].upper() != "M"]
+        self.mandatoryIEs = [ie for ie in self.msgDef if ie["presence"].upper() == "M"]
+        
         self.fullIEIs = [ie for ie in self.optionalIEs if "-" not in ie["iei"]]
         self.halfIEIs = [ie for ie in self.optionalIEs if "-" in ie["iei"]]
-        self.interestedIEs = [ie for ie in self.optionalIEs if REFINER.checkIE(self.msgName, ie["ie"])]
-        self.interestedFullIEIs = [ie for ie in self.interestedIEs if "-" not in ie["iei"]]
-        self.interestedHalfIEIs = [ie for ie in self.interestedIEs if "-" in ie["iei"]]
+
+        self.aimOptIEs = [ie for ie in self.optionalIEs if REFINER.checkIE(self.msgName, ie["ie"])]
+        self.aimOptFullIEIs = [ie for ie in self.aimOptIEs if "-" not in ie["iei"]]
+        self.aimOptHalfIEIs = [ie for ie in self.aimOptIEs if "-" in ie["iei"]]
+
+        self.aimMandaIEs = [ie for ie in self.mandatoryIEs if REFINER.checkIE(self.msgName, ie["ie"])]
+        self.aimMandaFullIEIs = [ie for ie in self.aimMandaIEs if "-" not in ie["iei"]]
+        self.aimMandaHalfIEIs = [ie for ie in self.aimMandaIEs if "-" in ie["iei"]]
 
         self.addInclude("lte_nas_ie.h")
         self.addInclude(fileName + ".h")
@@ -310,9 +319,9 @@ class NASMessageParseCode(cppCode):
             if REFINER.checkIE(self.msgName, ie["ie"]):
                 lines.append("priv->msg_ie_id = %s;" %(nameFormat(self.msgName + "_" + ie["ie"]).upper()))
                 if ie["length"] == "1/2":
-                    lines.append("nas_ie_%s_parse(data + %s, 0, %d, ie_info_noticer, (void *)priv);" %(nameFormat(ie["type"]), valueOffset, 0 if halfByteInd else 1))
+                    lines.append("nas_ie_%s_parse(data + %s, %d, ie_info_noticer, (void *)priv);" %(nameFormat(ie["type"]), valueOffset, 0 if halfByteInd else 1))
                 else:
-                    lines.append("nas_ie_%s_parse(data + %s, 0, %d, ie_info_noticer, (void *)priv);" %(nameFormat(ie["type"]), valueOffset, 0 if halfByteInd else 1))
+                    lines.append("nas_ie_%s_parse(data + %s, %s, ie_info_noticer, (void *)priv);" %(nameFormat(ie["type"]), valueOffset, valLength))
             
             lines.append("data += (%s + %s); /*skip IE %s(%s)*/" %(valueOffset, valLength, ie["ie"], ie["type"]))
 
@@ -322,13 +331,11 @@ class NASMessageParseCode(cppCode):
 
     def parseFuncFill(self):
 
-        interestedIECnt = len(self.interestedIEs)
-
         lines = []
 
         lines.append("lte_nas_ie_parser _parser;")
         lines.append("unsigned short parsed_len = 0;")
-        lines.append("unsigned char target_ies_left = %d; //IEs assigned" %(interestedIECnt))
+        lines.append("unsigned char target_ies_left = %d; //IEs assigned" %(len(self.aimOptIEs)))
         lines.append("")
         lines.append("parsed_len += mandatory_ies_parse(data, len, priv);")
         
@@ -375,7 +382,7 @@ class NASMessageParseCode(cppCode):
 
         lines.append("\tswitch(IEI(ie_pos)){")
 
-        for ie in self.interestedFullIEIs:
+        for ie in self.aimOptFullIEIs:
             lines.append("\t\tcase 0x%s:" %(ie["iei"].replace("-", "")))
             lines.append("\t\t\t/*%s(%s) fmt %s length %s*/" %(ie["ie"], ie["type"], ie["format"], ie["length"]))
             lines.append("\t\t\tpriv->msg_ie_id = %s;" %(nameFormat(self.msgName + "_" + ie["ie"]).upper()))
@@ -383,9 +390,9 @@ class NASMessageParseCode(cppCode):
         
         lines.append("\t\tdefault: ")
 
-        if self.interestedHalfIEIs:
+        if self.aimOptHalfIEIs:
             lines.append("\t\t\tswitch(IEI(ie_pos) & 0xf0){")
-            for ie in self.interestedHalfIEIs:
+            for ie in self.aimOptHalfIEIs:
                 lines.append("\t\t\t\tcase 0x%s: " %(ie["iei"].replace("-", "")))
                 lines.append("\t\t\t\t\t/*%s(%s) fmt %s length %s*/" %(ie["ie"], ie["type"], ie["format"], ie["length"]))
                 lines.append("\t\t\t\t\tpriv->msg_ie_id = %s;" %(nameFormat(self.msgName + "_" + ie["ie"]).upper()))
@@ -424,7 +431,7 @@ class NASMessageParseCode(cppCode):
         lines = []
 
         lines.append("switch(ie){")
-        for ie in self.interestedIEs:
+        for ie in self.aimOptIEs + self.aimMandaIEs:
             funcName = "nas_ie_%s_info_id_to_str" %(nameFormat(ie["type"]))
             ieEnumName = nameFormat(self.msgName + "_" + ie["ie"]).upper()
             if IEModuleExam(ie["type"], funcName + r"\s*\("):
@@ -529,6 +536,9 @@ class NASMessageCode(cppCode):
 def IEModuleExam(moduleName, pattern):
     
     filePath = os.path.join(args.ie_modules, "nas_ie_%s.c" %(nameFormat(moduleName)))
+    if not os.path.exists(filePath):
+        return False
+    
     file = open(filePath, "r")
     if not file:
         return False
