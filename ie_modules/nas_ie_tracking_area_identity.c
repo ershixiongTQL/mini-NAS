@@ -1,6 +1,8 @@
 #include "lte_nas_ie.h"
 #include "nas_ie_tracking_area_identity.h"
 
+#include "nas_ie_tracking_area_identity_info_enable.h"
+
 struct tracking_area_identity_ie{
 
 #if __BYTE_ORDER__==__ORDER_BIG_ENDIAN__
@@ -52,7 +54,7 @@ const char *nas_ie_tracking_area_identity_info_id_to_str(unsigned int id){
     switch(id){
         case MCC: return "MCC";
         case MNC: return "MNC";
-        case TAC: return "TAI";
+        case TAC: return "TAC";
         default: return "?";
     }
 }

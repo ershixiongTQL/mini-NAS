@@ -1,9 +1,14 @@
+prot: lte_nas
+items: 
 -
   msg : 
     - attach request
+    - tracking area update request
   ie : last visited registered tai
   info : 
     - MCC
     - MNC
-    - TAI
+    - TAC
+
+
     

@@ -1,3 +1,4 @@
+from re import L
 import sys, os
 import pathlib 
 import yaml
@@ -5,7 +6,7 @@ import yaml
 class Refiner():
 
     def __init__(self, ruleFile : pathlib.Path):
-        self.rule = yaml.safe_load(open(ruleFile, "r"))
+        self.rule = yaml.safe_load(open(ruleFile, "r"))["items"]
         # print(self.rule)
 
     def checkMsg(self, msgName):
@@ -59,19 +60,38 @@ class Refiner():
         
         return False
         
-        # msgName = msgName.lower()
-        # IEName = IEName.lower()
+    def getAllInfo(self):
 
-        # if msgName == "attach request":
-        #     if IEName in [
-        #         "last visited registered tai", 
-        #         # "ms network capability",
-        #         # "additional update type",
-        #         # "security header type",
-        #         # "protocol discriminator",
-        #         # "mobile station classmark 2",
-        #         ]:
-        #         return True
-        
-        # return False #debug
+        result = []
+
+        for item in self.rule:
+            
+            msgs = item.get("msg")
+            ies = item.get("ie")
+            infos = item.get("info")
+
+            if not infos or not msgs or not ies:
+                continue
+
+            msgs = listrize(msgs)
+            ies = listrize(ies)
+            infos = listrize(infos)
+
+            for msg in msgs:
+                for ie in ies:
+                    for info in infos:
+                        result.append({
+                            "msg": msg.lower(),
+                            "ie": ie.lower(),
+                            "info": info.lower()
+                        })
+
+        return result
+
+def listrize(obj):
+
+    if isinstance(obj, list):
+        return obj
+    else:
+        return [obj]
 

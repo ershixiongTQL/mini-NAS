@@ -136,7 +136,14 @@ class MSGBody():
                         msgType = re.sub(r"\s+((message identity)|(message type)|(message))\s*$", "", msgType)
                         self._msgType = msgType.strip()
 
-            self._IEs.append(IE)
+                if key == "iei":
+                    if len(attr.strip()) > 2 or re.match(r".*[^0-9a-fA-F-]", attr.strip()):
+                        print("skip iei %s" %(attr))
+                        IE = None
+                        break
+
+            if IE:
+                self._IEs.append(IE)
 
     @property
     def IEs(self):

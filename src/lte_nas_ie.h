@@ -1,7 +1,12 @@
 #ifndef _LTE_NAS_IE_H_
 #define _LTE_NAS_IE_H_
 
+#ifdef _WIN32
 #include <winsock.h>
+#else
+#include <arpa/inet.h>
+#endif
+
 #include <stdio.h>
 #include <string.h>
 
@@ -33,10 +38,6 @@ struct ie_hdr_tlv_e{
     unsigned short l;
 };
 
-// struct ie_hdr_tv{
-//     unsigned char t;
-// };
-
 struct ie_hdr_lv_e{
     unsigned short l;
 };
@@ -56,5 +57,7 @@ struct nas_msg_noticer_priv{
     unsigned msg_ie_id;
     unsigned msg_ie_info_id;
 };
+
+#define IEI(__POS__) (((unsigned char *)__POS__)[0])
 
 #endif

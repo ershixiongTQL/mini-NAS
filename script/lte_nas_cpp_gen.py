@@ -52,6 +52,7 @@ class IEModules():
     def __init__(self, dirs : pathlib.Path):
         
         self.ieSupports = []
+        self.infoSwitches = {}
         
         for root, dirs, files in os.walk(dirs):
             for file in files:
@@ -63,6 +64,28 @@ class IEModules():
         # hdrs = [hdr for hdr in self.ieSupports if hdr.withprefix("nas_ie_%s" %(nameFormat(name).lower()))]
         # return hdrs[0]
         return "nas_ie_%s.h" %(nameFormat(name).lower())
+
+    def infoSwitchOn(self, ie_type, info_name):
+        
+        if ie_type in self.infoSwitches:
+            if info_name not in self.infoSwitches[ie_type]:
+                self.infoSwitches[ie_type].append(info_name)
+        else:
+            self.infoSwitches[ie_type] = [info_name]
+
+    def getInfoSwitches(self, ie_type):
+        return self.infoSwitches[ie_type]
+
+    def getAllInfoSwitches(self):
+        switches = []
+        for ie in self.ieSupports:
+            if ie in self.infoSwitches:
+                switches += self.infoSwitches[ie]
+        return switches
+
+    @property
+    def modules(self):
+        return self.ieSupports
 
     def __len__(self):
         return len(self.ieSupports)
@@ -312,13 +335,12 @@ class NASMessageParseCode(cppCode):
         lines.append("")
         lines.append("while(target_ies_left && (len > parsed_len)){")
 
-        lines.append("\tunsigned int iei, ie_val_len;")
+        lines.append("\tunsigned int ie_val_len;")
         lines.append("\tunsigned char msg_value_offset = 1; //default")
         lines.append("\tunsigned char *ie_pos = data + parsed_len;")
-        lines.append("\tiei = *ie_pos;")
         lines.append("")
 
-        lines.append("\tswitch(iei){")
+        lines.append("\tswitch(IEI(ie_pos)){")
         fmtCates = {}
         for ie in self.fullIEIs:
             if not fmtCates.get(ie["format"]):
@@ -340,7 +362,7 @@ class NASMessageParseCode(cppCode):
         lines.append("\t\tdefault:")
 
         if self.halfIEIs:
-            lines.append("\t\t\tswitch(iei & 0xf0){")
+            lines.append("\t\t\tswitch(IEI(ie_pos) & 0xf0){")
             lines.append("\t\t\t\t" + " ".join(["case 0x%s:" %(ie["iei"].strip("-")) for ie in self.halfIEIs]))
             lines.append("\t\t\t\t\tie_val_len = 1;")
             lines.append("\t\t\t\t\tmsg_value_offset = 0; break;")
@@ -351,7 +373,7 @@ class NASMessageParseCode(cppCode):
         lines.append("\t}")
         lines.append("")
 
-        lines.append("\tswitch(iei){")
+        lines.append("\tswitch(IEI(ie_pos)){")
 
         for ie in self.interestedFullIEIs:
             lines.append("\t\tcase 0x%s:" %(ie["iei"].replace("-", "")))
@@ -362,7 +384,7 @@ class NASMessageParseCode(cppCode):
         lines.append("\t\tdefault: ")
 
         if self.interestedHalfIEIs:
-            lines.append("\t\t\tswitch(iei & 0xf0){")
+            lines.append("\t\t\tswitch(IEI(ie_pos) & 0xf0){")
             for ie in self.interestedHalfIEIs:
                 lines.append("\t\t\t\tcase 0x%s: " %(ie["iei"].replace("-", "")))
                 lines.append("\t\t\t\t\t/*%s(%s) fmt %s length %s*/" %(ie["ie"], ie["type"], ie["format"], ie["length"]))
@@ -563,6 +585,46 @@ def lteNasIEValueOffset(ie: dict):
     else:
         print("unknown format %s" %(ie["format"]))
 
+def nasIEInfoSwitchAssign(msgDefs):
+
+    allCares = REFINER.getAllInfo()
+
+    for msg_name in msgDefs:
+        msg = msgDefs[msg_name]
+        for ie in msg:
+            ie_name = ie["ie"].lower()
+            ie_type = ie["type"].lower()
+
+            cares = [care for care in allCares if care["msg"] == msg_name.lower() and care["ie"] == ie_name]
+
+            for care in cares:
+                IE_MODULES.infoSwitchOn(ie_type, care["info"])
+
+def dumpIEInfoEnableFiles(targetPath):
+
+    modules = IE_MODULES.modules
+
+    for module in modules:
+        file = open(os.path.join(targetPath, "nas_ie_%s_info_enable.h" %(nameFormat(module))), "w")
+
+        infosEn = IE_MODULES.getInfoSwitches(module)
+
+        code = ""
+
+        code += "#ifndef _NAS_IE_%s_INFO_ENABLE_H_" %(nameFormat(module).upper())+ "\n"
+        code += "#define _NAS_IE_%s_INFO_ENABLE_H_" %(nameFormat(module).upper())+ "\n\n"
+        
+        code += "//%d INFO(s) SWITCHED ON" %(len(infosEn)) + "\n"
+
+        for info in infosEn:
+            code += "#define CARE_%s_%s" %(nameFormat(module).upper(), nameFormat(info).upper()) + "\n"
+        
+        code += "\n#endif" + "\n"
+        
+        file.write(code)
+
+        file.close()
+    
 def main():
 
     msgDefs = loadMessageDefenition()
@@ -589,6 +651,11 @@ def main():
 
     NASMessageCode(msgDefs).dumps(targetPath)
 
+    nasIEInfoSwitchAssign(msgDefs)
+
+    dumpIEInfoEnableFiles(targetPath)
+
 REFINER = Refiner(args.refine_rule)
 IE_MODULES = IEModules(args.ie_modules)
+
 main()
